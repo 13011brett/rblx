@@ -321,6 +321,46 @@ title.TextColor3 = Color3.new(1, 1, 1)
 title.Font = Enum.Font.GothamBold
 title.TextScaled = true
 
+-- Minimize button
+local minimizeBtn = Instance.new("TextButton", mainFrame)
+minimizeBtn.Size = UDim2.new(0, 25, 0, 25)
+minimizeBtn.Position = UDim2.new(1, -60, 0, 5) -- Next to the X
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+minimizeBtn.Text = "-"
+minimizeBtn.TextColor3 = Color3.new(1, 1, 1)
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.TextScaled = true
+
+local minimizeBtnCorner = Instance.new("UICorner", minimizeBtn)
+minimizeBtnCorner.CornerRadius = UDim.new(0, 12)
+
+-- Reopen button (hidden at first)
+local reopenBtn = Instance.new("TextButton", gui)
+reopenBtn.Size = UDim2.new(0, 50, 0, 50)
+reopenBtn.Position = UDim2.new(1, -60, 1, -60) -- bottom-right corner
+reopenBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+reopenBtn.Text = "+"
+reopenBtn.TextColor3 = Color3.new(1, 1, 1)
+reopenBtn.Font = Enum.Font.GothamBold
+reopenBtn.TextScaled = true
+reopenBtn.Visible = false
+
+local reopenCorner = Instance.new("UICorner", reopenBtn)
+reopenCorner.CornerRadius = UDim.new(1, 0) -- full circle
+
+-- Minimize behavior
+minimizeBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    reopenBtn.Visible = true
+end)
+
+-- Reopen behavior
+reopenBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = true
+    reopenBtn.Visible = false
+end)
+
+
 -- Close button
 local closeBtn = Instance.new("TextButton", mainFrame)
 closeBtn.Size = UDim2.new(0, 25, 0, 25)
