@@ -135,13 +135,32 @@ local function readActivePets()
                 -- Extract number from text like "Age: 32"
                 local ageNum = tonumber(string.match(ageText, "%d+")) or 0
                 
+                local petNameText = petName and petName.Text or "Unknown"
+                local petTypeText = petType and petType.Text or "Unknown"
+                
+                -- Extract mutation from PET_TYPE (e.g., "Golden Capybara" -> mutation: "Golden", type: "Capybara")
+                local mutation = "None"
+                local actualType = petTypeText
+                
+                -- Common mutation prefixes in pet games
+                local mutations = {"Golden", "Rainbow", "Shiny", "Diamond", "Crystal", "Shadow", "Light", "Dark", "Fire", "Ice", "Electric", "Cosmic", "Galactic", "Void", "Corrupted"}
+                
+                for _, mut in pairs(mutations) do
+                    if string.find(petTypeText, "^" .. mut .. " ") then -- Starts with mutation + space
+                        mutation = mut
+                        actualType = string.gsub(petTypeText, "^" .. mut .. " ", "") -- Remove mutation from type
+                        break
+                    end
+                end
+                
                 local petInfo = {
                     uuid = child.Name,
                     age = ageNum,
-                    name = petName and petName.Text or "Unknown",
-                    type = petType and petType.Text or "Unknown",
-                    mutation = petMutation and petMutation.Text or "None",
-                    ageText = ageText
+                    name = petNameText,
+                    type = actualType,
+                    mutation = mutation,
+                    ageText = ageText,
+                    fullType = petTypeText -- Keep original for debugging
                 }
                 
                 table.insert(pets, petInfo)
