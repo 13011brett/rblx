@@ -548,6 +548,18 @@ monitorBtn.MouseButton1Click:Connect(function()
 end)
 
 print("Enhanced Pet Age Monitor loaded!")
+print("Creating GUI...")
+
+-- Test if GUI was created successfully
+if gui and mainFrame then
+    print("GUI created successfully")
+    print("Main frame size:", mainFrame.Size)
+    print("Main frame position:", mainFrame.Position)
+else
+    print("ERROR: GUI creation failed")
+end
+
+print("Instructions:")
 print("1. Open your pet menu in-game")
 print("2. Click 'Refresh Pets' to load your pets")
 print("3. Select pets you want to monitor")
