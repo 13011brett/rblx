@@ -141,8 +141,8 @@ local function readActivePets()
                     
                     local petUUID = tool:GetAttribute("PET_UUID")
                     local petAge = tool:GetAttribute("Age") or tool:GetAttribute("PetAge") or 0
-                    local petName = tool:GetAttribute("PetName") or tool:GetAttribute("Name")
-                    local petType = tool:GetAttribute("PetType") or tool:GetAttribute("Type")
+                    local petName = tool:GetAttribute("PET_NAME") or tool:GetAttribute("Name")
+                    local petType = tool:GetAttribute("PET_TYPE") or tool:GetAttribute("Type")
                     
                     print(string.format("     -> PET_UUID: %s", petUUID or "nil"))
                     print(string.format("     -> Age: %s", tostring(petAge)))
