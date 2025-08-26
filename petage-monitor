@@ -1,4 +1,27 @@
---[[
+-- Function to clean up and close the script
+local function cleanup()
+    -- Stop monitoring if active
+    if isMonitoring and monitorConnection then
+        monitorConnection:Disconnect()
+        monitorConnection = nil
+    end
+    
+    -- Clear data
+    selectedPets = {}
+    allPetsData = {}
+    lastNotifiedPets = {}
+    
+    -- Remove GUI
+    gui:Destroy()
+    
+    print("Enhanced Pet Age Monitor closed and cleaned up.")
+end
+
+-- Button events
+refreshBtn.MouseButton1Click:Connect(refreshPetList)
+
+-- Close button event
+closeBtn.MouseButton1Click:Connect(cleanup)--[[
     Enhanced Pet Age Monitor with Selective Monitoring
     Features: Mutation detection, selective pet monitoring, improved GUI
 ]]
@@ -178,11 +201,27 @@ local function readActivePets()
                         -- Extract mutation from petType
                         local mutation = "Normal"
                         local actualType = petType
+                        local displayName = petName or "Unknown Pet"
+                        
+                        -- If we don't have a petName, try to extract it better from the tool name
+                        if not petName or petName == "" then
+                            -- Try to get the full pet name from tool.Name
+                            -- Format: "Aromatic Echo Frog [47.39 KG] [Age 1]"
+                            local fullName = string.match(tool.Name, "^(.+) %[%d+%.%d+ KG%]")
+                            if fullName then
+                                displayName = fullName
+                                petType = fullName -- Use full name as type for mutation parsing
+                            end
+                        end
                         
                         for _, mut in pairs(mutations) do
                             if string.find(petType, "^" .. mut .. " ") then
                                 mutation = mut
                                 actualType = string.gsub(petType, "^" .. mut .. " ", "")
+                                -- If we extracted from tool name, also update display name
+                                if not petName or petName == "" then
+                                    displayName = actualType
+                                end
                                 break
                             end
                         end
@@ -192,7 +231,7 @@ local function readActivePets()
                         pets[uuid] = {
                             uuid = uuid,
                             age = petAge,
-                            name = petName or actualType,
+                            name = displayName,
                             type = actualType,
                             mutation = mutation,
                             fullType = petType,
@@ -202,7 +241,7 @@ local function readActivePets()
                         }
                         
                         print(string.format("     -> ADDED BACKPACK PET: %s (%s) Age: %d UUID: %s", 
-                            petName or actualType, mutation, petAge, uuid))
+                            displayName, mutation, petAge, uuid))
                     else
                         print("     -> Could not determine pet type, skipping")
                     end
@@ -282,6 +321,9 @@ end
 local gui = Instance.new("ScreenGui", game.CoreGui)
 gui.ResetOnSpawn = false
 gui.Name = "EnhancedPetMonitor"
+gui.Enabled = true
+
+print("Creating main frame...")
 
 local mainFrame = Instance.new("Frame", gui)
 mainFrame.Size = UDim2.fromOffset(500, 400)
@@ -289,18 +331,35 @@ mainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
 mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 mainFrame.Active = true
 mainFrame.Draggable = true
+mainFrame.Visible = true
+
+print("Main frame created with size:", mainFrame.Size, "position:", mainFrame.Position)
 
 local corner = Instance.new("UICorner", mainFrame)
 corner.CornerRadius = UDim.new(0, 12)
 
 -- Title
 local title = Instance.new("TextLabel", mainFrame)
-title.Size = UDim2.new(1, 0, 0.1, 0)
+title.Size = UDim2.new(0.9, 0, 0.1, 0)
+title.Position = UDim2.new(0, 0, 0, 0)
 title.BackgroundTransparency = 1
 title.Text = "Enhanced Pet Age Monitor"
 title.TextColor3 = Color3.new(1, 1, 1)
 title.Font = Enum.Font.GothamBold
 title.TextScaled = true
+
+-- Close button
+local closeBtn = Instance.new("TextButton", mainFrame)
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextScaled = true
+
+local closeBtnCorner = Instance.new("UICorner", closeBtn)
+closeBtnCorner.CornerRadius = UDim.new(0, 15)
 
 -- Control buttons frame
 local controlFrame = Instance.new("Frame", mainFrame)
@@ -439,8 +498,27 @@ local function refreshPetList()
     statusLabel.Text = string.format("Found %d pets. Target age: %d", count, targetAge)
 end
 
--- Button events
-refreshBtn.MouseButton1Click:Connect(refreshPetList)
+-- Function to clean up and close the script
+local function cleanup()
+    -- Stop monitoring if active
+    if isMonitoring and monitorConnection then
+        monitorConnection:Disconnect()
+        monitorConnection = nil
+    end
+    
+    -- Clear data
+    selectedPets = {}
+    allPetsData = {}
+    lastNotifiedPets = {}
+    
+    -- Remove GUI
+    gui:Destroy()
+    
+    print("Enhanced Pet Age Monitor closed and cleaned up.")
+end
+
+-- Close button event
+closeBtn.MouseButton1Click:Connect(cleanup)
 
 selectAllBtn.MouseButton1Click:Connect(function()
     local allSelected = true
@@ -498,6 +576,18 @@ monitorBtn.MouseButton1Click:Connect(function()
 end)
 
 print("Enhanced Pet Age Monitor loaded!")
+print("Creating GUI...")
+
+-- Test if GUI was created successfully
+if gui and mainFrame then
+    print("GUI created successfully")
+    print("Main frame size:", mainFrame.Size)
+    print("Main frame position:", mainFrame.Position)
+else
+    print("ERROR: GUI creation failed")
+end
+
+print("Instructions:")
 print("1. Open your pet menu in-game")
 print("2. Click 'Refresh Pets' to load your pets")
 print("3. Select pets you want to monitor")
