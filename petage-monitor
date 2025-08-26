@@ -91,45 +91,52 @@ local function readActivePets()
     if LocalPlayer.Backpack then
         for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
             if tool:IsA("Tool") and tool:GetAttribute("ItemType") == "Pet" then
-                -- Try to extract age from tool name or attributes
-                local toolName = tool.Name
-                local ageMatch = string.match(toolName, "%[(%d+%.%d+) KG%] %[Age (%d+)%]")
+                local petUUID = tool:GetAttribute("PET_UUID")
+                local petAge = tool:GetAttribute("Age") or tool:GetAttribute("PetAge") or 0
+                local petName = tool:GetAttribute("PetName") or tool:GetAttribute("Name") or "Unknown"
+                local petType = tool:GetAttribute("PetType") or tool:GetAttribute("Type") or "Unknown"
                 
-                if ageMatch then
-                    local _, ageNum = string.match(toolName, "%[(%d+%.%d+) KG%] %[Age (%d+)%]")
-                    ageNum = tonumber(ageNum) or 0
-                    
-                    -- Extract pet name and mutation from tool name
-                    -- Format: "Mutation PetType [Weight] [Age]"
-                    local nameAndType = string.match(toolName, "^(.+) %[%d+%.%d+ KG%]")
-                    if nameAndType then
-                        local mutation = "Normal"
-                        local petType = nameAndType
-                        
-                        -- Check for mutations
-                        for _, mut in pairs(mutations) do
-                            if string.find(nameAndType, "^" .. mut .. " ") then
-                                mutation = mut
-                                petType = string.gsub(nameAndType, "^" .. mut .. " ", "")
-                                break
-                            end
-                        end
-                        
-                        local uuid = "BACKPACK_" .. tool:GetDebugId() -- Generate unique ID
-                        
-                        pets[uuid] = {
-                            uuid = uuid,
-                            age = ageNum,
-                            name = petType, -- Using type as name for backpack pets
-                            type = petType,
-                            mutation = mutation,
-                            fullType = nameAndType,
-                            location = "Backpack",
-                            toolRef = tool,
-                            selected = selectedPets[uuid] or false
-                        }
+                -- If no direct age attribute, try parsing from tool name as fallback
+                if petAge == 0 then
+                    local ageMatch = string.match(tool.Name, "%[Age (%d+)%]")
+                    if ageMatch then
+                        petAge = tonumber(ageMatch) or 0
                     end
                 end
+                
+                -- If no direct type, try parsing from tool name
+                if petType == "Unknown" then
+                    local nameAndType = string.match(tool.Name, "^(.+) %[%d+%.%d+ KG%]")
+                    if nameAndType then
+                        petType = nameAndType
+                    end
+                end
+                
+                -- Extract mutation from petType
+                local mutation = "Normal"
+                local actualType = petType
+                
+                for _, mut in pairs(mutations) do
+                    if string.find(petType, "^" .. mut .. " ") then
+                        mutation = mut
+                        actualType = string.gsub(petType, "^" .. mut .. " ", "")
+                        break
+                    end
+                end
+                
+                local uuid = petUUID or ("BACKPACK_" .. tool:GetDebugId())
+                
+                pets[uuid] = {
+                    uuid = uuid,
+                    age = petAge,
+                    name = petName,
+                    type = actualType,
+                    mutation = mutation,
+                    fullType = petType,
+                    location = "Backpack",
+                    toolRef = tool,
+                    selected = selectedPets[uuid] or false
+                }
             end
         end
     end
