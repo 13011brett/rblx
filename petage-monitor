@@ -1,5 +1,4 @@
--- Button events
-refreshBtn.MouseButton1Click:Connect(refreshPetList)--[[
+--[[
     Enhanced Pet Age Monitor with Selective Monitoring
     Features: Mutation detection, selective pet monitoring, improved GUI
 ]]
@@ -299,9 +298,6 @@ end
 local gui = Instance.new("ScreenGui", game.CoreGui)
 gui.ResetOnSpawn = false
 gui.Name = "EnhancedPetMonitor"
-gui.Enabled = true
-
-print("Creating main frame...")
 
 local mainFrame = Instance.new("Frame", gui)
 mainFrame.Size = UDim2.fromOffset(500, 400)
@@ -309,9 +305,6 @@ mainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
 mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 mainFrame.Active = true
 mainFrame.Draggable = true
-mainFrame.Visible = true
-
-print("Main frame created with size:", mainFrame.Size, "position:", mainFrame.Position)
 
 local corner = Instance.new("UICorner", mainFrame)
 corner.CornerRadius = UDim.new(0, 12)
@@ -476,27 +469,8 @@ local function refreshPetList()
     statusLabel.Text = string.format("Found %d pets. Target age: %d", count, targetAge)
 end
 
--- Function to clean up and close the script
-local function cleanup()
-    -- Stop monitoring if active
-    if isMonitoring and monitorConnection then
-        monitorConnection:Disconnect()
-        monitorConnection = nil
-    end
-    
-    -- Clear data
-    selectedPets = {}
-    allPetsData = {}
-    lastNotifiedPets = {}
-    
-    -- Remove GUI
-    gui:Destroy()
-    
-    print("Enhanced Pet Age Monitor closed and cleaned up.")
-end
-
--- Close button event
-closeBtn.MouseButton1Click:Connect(cleanup)
+-- Button events
+refreshBtn.MouseButton1Click:Connect(refreshPetList)
 
 selectAllBtn.MouseButton1Click:Connect(function()
     local allSelected = true
@@ -554,18 +528,6 @@ monitorBtn.MouseButton1Click:Connect(function()
 end)
 
 print("Enhanced Pet Age Monitor loaded!")
-print("Creating GUI...")
-
--- Test if GUI was created successfully
-if gui and mainFrame then
-    print("GUI created successfully")
-    print("Main frame size:", mainFrame.Size)
-    print("Main frame position:", mainFrame.Position)
-else
-    print("ERROR: GUI creation failed")
-end
-
-print("Instructions:")
 print("1. Open your pet menu in-game")
 print("2. Click 'Refresh Pets' to load your pets")
 print("3. Select pets you want to monitor")
