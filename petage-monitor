@@ -1,6 +1,6 @@
 --[[
-    Pet Age Monitor - Correct Path
-    Uses the exact path: ActivePetUI → Frame → Main → PetDisplay → ScrollingFrame → UUIDs
+    Enhanced Pet Age Monitor with Selective Monitoring
+    Features: Mutation detection, selective pet monitoring, improved GUI
 ]]
 
 -- Services
@@ -13,56 +13,36 @@ local targetAge = 50
 local isMonitoring = false
 local monitorConnection
 local lastNotifiedPets = {}
+local selectedPets = {} -- UUIDs of pets to monitor
+local allPetsData = {} -- Cache of all detected pets
 
-print("=== PET AGE MONITOR - CORRECT PATH ===")
+-- Mutation data from decompiled PetMutationRegistry
+local mutations = {
+    "Shocked", "Golden", "Rainbow", "Shiny", "Windy", "Frozen", "Inverted", 
+    "Mega", "Tiny", "IronSkin", "Radiant", "Ascended", "Tranquil", 
+    "Corrupted", "Fried", "Aromatic", "Silver", "GiantBean"
+}
 
--- Function to read pet data from ActivePetUI using the correct path
+print("=== ENHANCED PET AGE MONITOR ===")
+
+-- Function to read pet data from ActivePetUI
 local function readActivePets()
-    -- Follow exact path: ActivePetUI → Frame → Main → PetDisplay → ScrollingFrame
     local activePetUI = LocalPlayer.PlayerGui:FindFirstChild("ActivePetUI")
-    if not activePetUI then
-        print("ActivePetUI not found in PlayerGui")
-        return {}
-    end
+    if not activePetUI then return {} end
     
-    local frame = activePetUI:FindFirstChild("Frame")
-    if not frame then
-        print("Frame not found in ActivePetUI")
-        return {}
+    local scrollingFrame = activePetUI
+    for _, pathPart in pairs({"Frame", "Main", "PetDisplay", "ScrollingFrame"}) do
+        scrollingFrame = scrollingFrame:FindFirstChild(pathPart)
+        if not scrollingFrame then return {} end
     end
-    
-    local main = frame:FindFirstChild("Main")
-    if not main then
-        print("Main not found in Frame")
-        return {}
-    end
-    
-    local petDisplay = main:FindFirstChild("PetDisplay")
-    if not petDisplay then
-        print("PetDisplay not found in Main")
-        return {}
-    end
-    
-    local scrollingFrame = petDisplay:FindFirstChild("ScrollingFrame")
-    if not scrollingFrame then
-        print("ScrollingFrame not found in PetDisplay")
-        return {}
-    end
-    
-    print("Successfully navigated to ScrollingFrame")
     
     local pets = {}
     
-    -- Now look for UUID folders directly in ScrollingFrame
     for _, child in pairs(scrollingFrame:GetChildren()) do
-        -- Check if this looks like a UUID (contains curly braces and dashes)
         if string.match(child.Name, "{.*%-.*%-.*%-.*%-.*}") then
-            print(string.format("Found UUID folder: %s", child.Name))
+            local petAge, petName, petType
             
-            -- Try to find PET_AGE TextLabel and mutation info in this UUID folder
-            local petAge, petName, petType, petMutation
-            
-            -- Method 1: Look in Main/Item structure
+            -- Search for pet data in Main/Item structure
             local main = child:FindFirstChild("Main")
             if main then
                 local item = main:FindFirstChild("Item")
@@ -70,85 +50,23 @@ local function readActivePets()
                     petAge = item:FindFirstChild("PET_AGE")
                     petName = item:FindFirstChild("PET_NAME")
                     petType = item:FindFirstChild("PET_TYPE")
-                    
-                    -- Look for mutation-related labels
-                    petMutation = item:FindFirstChild("PET_MUTATION") or 
-                                item:FindFirstChild("MUTATION") or
-                                item:FindFirstChild("PET_RARITY") or
-                                item:FindFirstChild("RARITY")
-                    
-                    print(string.format("  Checking Main/Item structure..."))
                 end
             end
             
-            -- Method 2: Look directly in UUID folder
-            if not petAge then
-                petAge = child:FindFirstChild("PET_AGE")
-                petName = child:FindFirstChild("PET_NAME")
-                petType = child:FindFirstChild("PET_TYPE")
-                
-                -- Look for mutation-related labels
-                petMutation = child:FindFirstChild("PET_MUTATION") or 
-                            child:FindFirstChild("MUTATION") or
-                            child:FindFirstChild("PET_RARITY") or
-                            child:FindFirstChild("RARITY")
-                
-                print(string.format("  Checking direct children..."))
-            end
-            
-            -- Method 3: Recursive search (in case structure is deeper)
-            if not petAge then
-                local function findPetAgeRecursive(parent, depth)
-                    if depth > 5 then return nil, nil, nil, nil end
-                    
-                    for _, subChild in pairs(parent:GetChildren()) do
-                        if subChild.Name == "PET_AGE" and subChild:IsA("TextLabel") then
-                            print(string.format("    Found PET_AGE at depth %d in %s", depth, parent.Name))
-                            local foundName = subChild.Parent:FindFirstChild("PET_NAME")
-                            local foundType = subChild.Parent:FindFirstChild("PET_TYPE")
-                            
-                            -- Look for mutation in same parent
-                            local foundMutation = subChild.Parent:FindFirstChild("PET_MUTATION") or 
-                                                subChild.Parent:FindFirstChild("MUTATION") or
-                                                subChild.Parent:FindFirstChild("PET_RARITY") or
-                                                subChild.Parent:FindFirstChild("RARITY")
-                            
-                            return subChild, foundName, foundType, foundMutation
-                        end
-                        
-                        if subChild:IsA("GuiObject") then
-                            local foundAge, foundName, foundType, foundMutation = findPetAgeRecursive(subChild, depth + 1)
-                            if foundAge then
-                                return foundAge, foundName, foundType, foundMutation
-                            end
-                        end
-                    end
-                    return nil, nil, nil, nil
-                end
-                
-                petAge, petName, petType, petMutation = findPetAgeRecursive(child, 0)
-            end
-            
-            -- If we found PET_AGE, extract the data
             if petAge and petAge:IsA("TextLabel") then
                 local ageText = petAge.Text
-                -- Extract number from text like "Age: 32"
                 local ageNum = tonumber(string.match(ageText, "%d+")) or 0
-                
                 local petNameText = petName and petName.Text or "Unknown"
                 local petTypeText = petType and petType.Text or "Unknown"
                 
-                -- Extract mutation from PET_TYPE (e.g., "Golden Capybara" -> mutation: "Golden", type: "Capybara")
-                local mutation = "None"
+                -- Extract mutation from PET_TYPE using the complete mutation list
+                local mutation = "Normal"
                 local actualType = petTypeText
                 
-                -- Common mutation prefixes in pet games
-                local mutations = {"Golden", "Rainbow", "Shiny", "Diamond", "Crystal", "Shadow", "Light", "Dark", "Fire", "Ice", "Electric", "Cosmic", "Galactic", "Void", "Corrupted"}
-                
                 for _, mut in pairs(mutations) do
-                    if string.find(petTypeText, "^" .. mut .. " ") then -- Starts with mutation + space
+                    if string.find(petTypeText, "^" .. mut .. " ") then
                         mutation = mut
-                        actualType = string.gsub(petTypeText, "^" .. mut .. " ", "") -- Remove mutation from type
+                        actualType = string.gsub(petTypeText, "^" .. mut .. " ", "")
                         break
                     end
                 end
@@ -159,71 +77,41 @@ local function readActivePets()
                     name = petNameText,
                     type = actualType,
                     mutation = mutation,
-                    ageText = ageText,
-                    fullType = petTypeText -- Keep original for debugging
+                    fullType = petTypeText,
+                    selected = selectedPets[child.Name] or false
                 }
                 
-                table.insert(pets, petInfo)
-                print(string.format("  SUCCESS: %s (%s) - Age: %d - Mutation: %s", 
-                    petInfo.name, petInfo.type, petInfo.age, petInfo.mutation))
-            else
-                print(string.format("  Could not find PET_AGE TextLabel in %s", child.Name))
-                
-                -- Debug: List all children and specifically highlight TextLabels
-                print("  All children in this UUID folder:")
-                local function listChildren(parent, indent)
-                    for _, subChild in pairs(parent:GetChildren()) do
-                        if subChild:IsA("TextLabel") then
-                            local text = subChild.Text or ""
-                            print(string.format("%s📝 %s (%s) Text: '%s'", indent, subChild.Name, subChild.ClassName, text))
-                        else
-                            print(string.format("%s%s (%s)", indent, subChild.Name, subChild.ClassName))
-                        end
-                        if subChild:IsA("GuiObject") and #subChild:GetChildren() > 0 then
-                            listChildren(subChild, indent .. "  ")
-                        end
-                    end
-                end
-                listChildren(child, "    ")
+                pets[child.Name] = petInfo -- Use UUID as key
             end
-        else
-            -- Not a UUID folder, but let's see what it is
-            print(string.format("Non-UUID child in ScrollingFrame: %s (%s)", child.Name, child.ClassName))
         end
     end
     
+    allPetsData = pets
     return pets
 end
 
--- Function to check for pets that have reached target age
-local function checkPetAges()
-    print("\n--- CHECKING PET AGES ---")
+-- Function to check selected pets for target age
+local function checkSelectedPets()
     local pets = readActivePets()
+    local alerts = {}
     
-    if #pets == 0 then
-        print("No pets found. Make sure your pet menu is open in the game.")
-        return {}
-    end
-    
-    for _, pet in pairs(pets) do
-        if pet.age >= targetAge then
-            local key = pet.uuid .. "_" .. pet.age
+    for uuid, pet in pairs(pets) do
+        if selectedPets[uuid] and pet.age >= targetAge then
+            local key = uuid .. "_" .. pet.age
             if not lastNotifiedPets[key] then
                 lastNotifiedPets[key] = true
-                
-                local message = string.format("%s (%s) has reached age %d!", pet.name, pet.type, pet.age)
-                print("🎉 ALERT: " .. message)
-                
-                showNotification(message)
+                local message = string.format("%s (%s %s) reached age %d!", 
+                    pet.name, pet.mutation, pet.type, pet.age)
+                table.insert(alerts, message)
             end
         end
     end
     
-    return pets
+    return alerts
 end
 
 -- Function to show notification
-function showNotification(message)
+local function showNotification(message)
     local notification = Instance.new("ScreenGui", game.CoreGui)
     notification.Name = "PetAgeAlert"
     
@@ -239,19 +127,15 @@ function showNotification(message)
     label.Size = UDim2.new(1, -20, 1, -20)
     label.Position = UDim2.new(0, 10, 0, 10)
     label.BackgroundTransparency = 1
-    label.Text = "🎉 " .. message .. " 🎉"
+    label.Text = message
     label.TextColor3 = Color3.new(1, 1, 1)
     label.TextScaled = true
     label.TextWrapped = true
     label.Font = Enum.Font.GothamBold
     
-    -- Animate in
     frame:TweenPosition(UDim2.new(0.5, -250, 0.15, 0), "Out", "Back", 0.5)
+    game:GetService("Debris"):AddItem(notification, 8)
     
-    -- Auto-remove
-    game:GetService("Debris"):AddItem(notification, 10)
-    
-    -- Play sound
     local sound = Instance.new("Sound")
     sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
     sound.Volume = 1
@@ -260,124 +144,228 @@ function showNotification(message)
     sound.Ended:Connect(function() sound:Destroy() end)
 end
 
--- Create GUI
+-- Create main GUI
 local gui = Instance.new("ScreenGui", game.CoreGui)
 gui.ResetOnSpawn = false
-gui.Name = "PetAgeMonitorCorrect"
+gui.Name = "EnhancedPetMonitor"
 
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromOffset(320, 180)
-frame.Position = UDim2.new(0.5, -160, 0.3, -90)
-frame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-frame.Active = true
-frame.Draggable = true
+local mainFrame = Instance.new("Frame", gui)
+mainFrame.Size = UDim2.fromOffset(500, 400)
+mainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
+mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+mainFrame.Active = true
+mainFrame.Draggable = true
 
-local corner = Instance.new("UICorner", frame)
-corner.CornerRadius = UDim.new(0, 8)
+local corner = Instance.new("UICorner", mainFrame)
+corner.CornerRadius = UDim.new(0, 12)
 
-local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, 0, 0.25, 0)
+-- Title
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1, 0, 0.1, 0)
 title.BackgroundTransparency = 1
-title.Text = "Pet Age Monitor"
+title.Text = "Enhanced Pet Age Monitor"
 title.TextColor3 = Color3.new(1, 1, 1)
 title.Font = Enum.Font.GothamBold
 title.TextScaled = true
 
-local listButton = Instance.new("TextButton", frame)
-listButton.Size = UDim2.new(0.9, 0, 0.18, 0)
-listButton.Position = UDim2.new(0.05, 0, 0.3, 0)
-listButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-listButton.Text = "List Active Pets"
-listButton.TextColor3 = Color3.new(1, 1, 1)
-listButton.Font = Enum.Font.GothamBold
-listButton.TextScaled = true
+-- Control buttons frame
+local controlFrame = Instance.new("Frame", mainFrame)
+controlFrame.Size = UDim2.new(1, -20, 0.15, 0)
+controlFrame.Position = UDim2.new(0, 10, 0.12, 0)
+controlFrame.BackgroundTransparency = 1
 
-local checkButton = Instance.new("TextButton", frame)
-checkButton.Size = UDim2.new(0.9, 0, 0.18, 0)
-checkButton.Position = UDim2.new(0.05, 0, 0.52, 0)
-checkButton.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
-checkButton.Text = "Check Ages Now"
-checkButton.TextColor3 = Color3.new(1, 1, 1)
-checkButton.Font = Enum.Font.GothamBold
-checkButton.TextScaled = true
+local refreshBtn = Instance.new("TextButton", controlFrame)
+refreshBtn.Size = UDim2.new(0.3, -5, 1, 0)
+refreshBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+refreshBtn.Text = "Refresh Pets"
+refreshBtn.TextColor3 = Color3.new(1, 1, 1)
+refreshBtn.Font = Enum.Font.GothamBold
+refreshBtn.TextScaled = true
 
-local monitorButton = Instance.new("TextButton", frame)
-monitorButton.Size = UDim2.new(0.9, 0, 0.18, 0)
-monitorButton.Position = UDim2.new(0.05, 0, 0.74, 0)
-monitorButton.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
-monitorButton.Text = "Start Monitoring"
-monitorButton.TextColor3 = Color3.new(1, 1, 1)
-monitorButton.Font = Enum.Font.GothamBold
-monitorButton.TextScaled = true
+local monitorBtn = Instance.new("TextButton", controlFrame)
+monitorBtn.Size = UDim2.new(0.35, -5, 1, 0)
+monitorBtn.Position = UDim2.new(0.35, 0, 0, 0)
+monitorBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+monitorBtn.Text = "Start Monitor"
+monitorBtn.TextColor3 = Color3.new(1, 1, 1)
+monitorBtn.Font = Enum.Font.GothamBold
+monitorBtn.TextScaled = true
 
--- Add corners to buttons
-for _, button in pairs({listButton, checkButton, monitorButton}) do
-    local corner = Instance.new("UICorner", button)
-    corner.CornerRadius = UDim.new(0, 4)
+local selectAllBtn = Instance.new("TextButton", controlFrame)
+selectAllBtn.Size = UDim2.new(0.3, -5, 1, 0)
+selectAllBtn.Position = UDim2.new(0.7, 5, 0, 0)
+selectAllBtn.BackgroundColor3 = Color3.fromRGB(150, 100, 200)
+selectAllBtn.Text = "Select All"
+selectAllBtn.TextColor3 = Color3.new(1, 1, 1)
+selectAllBtn.Font = Enum.Font.GothamBold
+selectAllBtn.TextScaled = true
+
+-- Add corners to control buttons
+for _, btn in pairs({refreshBtn, monitorBtn, selectAllBtn}) do
+    local btnCorner = Instance.new("UICorner", btn)
+    btnCorner.CornerRadius = UDim.new(0, 6)
+end
+
+-- Pet list scrolling frame
+local scrollFrame = Instance.new("ScrollingFrame", mainFrame)
+scrollFrame.Size = UDim2.new(1, -20, 0.65, 0)
+scrollFrame.Position = UDim2.new(0, 10, 0.3, 0)
+scrollFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+scrollFrame.BorderSizePixel = 0
+scrollFrame.CanvasSize = UDim2.fromOffset(0, 0)
+scrollFrame.ScrollBarThickness = 8
+
+local scrollCorner = Instance.new("UICorner", scrollFrame)
+scrollCorner.CornerRadius = UDim.new(0, 8)
+
+local listLayout = Instance.new("UIListLayout", scrollFrame)
+listLayout.Padding = UDim.new(0, 5)
+listLayout.SortOrder = Enum.SortOrder.Name
+
+-- Status label
+local statusLabel = Instance.new("TextLabel", mainFrame)
+statusLabel.Size = UDim2.new(1, 0, 0.08, 0)
+statusLabel.Position = UDim2.new(0, 0, 0.92, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Open pet menu, then click Refresh Pets"
+statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextScaled = true
+
+-- Function to create pet entry
+local function createPetEntry(uuid, petData)
+    local entry = Instance.new("Frame", scrollFrame)
+    entry.Size = UDim2.new(1, -10, 0, 50)
+    entry.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    entry.Name = uuid
+    
+    local entryCorner = Instance.new("UICorner", entry)
+    entryCorner.CornerRadius = UDim.new(0, 6)
+    
+    local checkbox = Instance.new("TextButton", entry)
+    checkbox.Size = UDim2.new(0, 30, 0, 30)
+    checkbox.Position = UDim2.new(0, 10, 0.5, -15)
+    checkbox.BackgroundColor3 = selectedPets[uuid] and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(100, 100, 100)
+    checkbox.Text = selectedPets[uuid] and "✓" or ""
+    checkbox.TextColor3 = Color3.new(1, 1, 1)
+    checkbox.Font = Enum.Font.GothamBold
+    checkbox.TextScaled = true
+    
+    local checkCorner = Instance.new("UICorner", checkbox)
+    checkCorner.CornerRadius = UDim.new(0, 4)
+    
+    local petLabel = Instance.new("TextLabel", entry)
+    petLabel.Size = UDim2.new(1, -130, 1, 0)
+    petLabel.Position = UDim2.new(0, 50, 0, 0)
+    petLabel.BackgroundTransparency = 1
+    petLabel.Text = string.format("%s (%s %s) - Age: %d", 
+        petData.name, petData.mutation, petData.type, petData.age)
+    petLabel.TextColor3 = Color3.new(1, 1, 1)
+    petLabel.Font = Enum.Font.Gotham
+    petLabel.TextScaled = true
+    petLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- Color code by mutation
+    if petData.mutation == "Golden" then
+        petLabel.TextColor3 = Color3.fromRGB(255, 225, 0)
+    elseif petData.mutation == "Rainbow" then
+        petLabel.TextColor3 = Color3.fromRGB(4, 175, 236)
+    elseif petData.mutation == "Shiny" then
+        petLabel.TextColor3 = Color3.fromRGB(145, 207, 221)
+    end
+    
+    checkbox.MouseButton1Click:Connect(function()
+        selectedPets[uuid] = not selectedPets[uuid]
+        checkbox.BackgroundColor3 = selectedPets[uuid] and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(100, 100, 100)
+        checkbox.Text = selectedPets[uuid] and "✓" or ""
+    end)
+    
+    return entry
+end
+
+-- Function to refresh pet list
+local function refreshPetList()
+    -- Clear existing entries
+    for _, child in pairs(scrollFrame:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    local pets = readActivePets()
+    local count = 0
+    
+    for uuid, petData in pairs(pets) do
+        createPetEntry(uuid, petData)
+        count = count + 1
+    end
+    
+    -- Update canvas size
+    scrollFrame.CanvasSize = UDim2.fromOffset(0, count * 55)
+    statusLabel.Text = string.format("Found %d pets. Target age: %d", count, targetAge)
 end
 
 -- Button events
-listButton.MouseButton1Click:Connect(function()
-    print("\n=== LISTING ACTIVE PETS ===")
-    local pets = readActivePets()
-    
-    if #pets > 0 then
-        for i, pet in pairs(pets) do
-            print(string.format("%d. %s (%s) - Age: %d - Mutation: %s - UUID: %s", 
-                i, pet.name, pet.type, pet.age, pet.mutation, pet.uuid))
+refreshBtn.MouseButton1Click:Connect(refreshPetList)
+
+selectAllBtn.MouseButton1Click:Connect(function()
+    local allSelected = true
+    for uuid, _ in pairs(allPetsData) do
+        if not selectedPets[uuid] then
+            allSelected = false
+            break
         end
-    else
-        print("No active pets found. Make sure your pet menu is open in the game.")
     end
-    print("=== END LIST ===\n")
+    
+    -- Toggle all
+    for uuid, _ in pairs(allPetsData) do
+        selectedPets[uuid] = not allSelected
+    end
+    
+    refreshPetList() -- Refresh to update checkboxes
+    selectAllBtn.Text = allSelected and "Select All" or "Deselect All"
 end)
 
-checkButton.MouseButton1Click:Connect(function()
-    checkPetAges()
-end)
-
-monitorButton.MouseButton1Click:Connect(function()
+monitorBtn.MouseButton1Click:Connect(function()
     if not isMonitoring then
-        -- Start monitoring
         isMonitoring = true
-        monitorButton.Text = "Stop Monitoring"
-        monitorButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+        monitorBtn.Text = "Stop Monitor"
+        monitorBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
         
-        print(string.format("Started monitoring for pets reaching age %d", targetAge))
+        local selectedCount = 0
+        for _ in pairs(selectedPets) do
+            if selectedPets[_] then selectedCount = selectedCount + 1 end
+        end
+        
+        statusLabel.Text = string.format("Monitoring %d pets for age %d", selectedCount, targetAge)
         
         local lastCheck = tick()
         monitorConnection = RunService.Heartbeat:Connect(function()
-            if tick() - lastCheck >= 10 then -- Check every 10 seconds
+            if tick() - lastCheck >= 10 then
                 lastCheck = tick()
-                checkPetAges()
+                local alerts = checkSelectedPets()
+                for _, alert in pairs(alerts) do
+                    print("ALERT: " .. alert)
+                    showNotification(alert)
+                end
             end
         end)
     else
-        -- Stop monitoring
         isMonitoring = false
-        monitorButton.Text = "Start Monitoring"
-        monitorButton.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+        monitorBtn.Text = "Start Monitor"
+        monitorBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+        statusLabel.Text = "Monitoring stopped"
         
         if monitorConnection then
             monitorConnection:Disconnect()
             monitorConnection = nil
         end
-        
-        print("Stopped monitoring")
     end
 end)
 
-print("Pet Age Monitor loaded with CORRECT PATH!")
-print("Path: ActivePetUI → Frame → Main → PetDisplay → ScrollingFrame → UUIDs")
-print("Instructions:")
-print("1. Open your pet menu in game (make sure ActivePetUI is visible)")
-print("2. Click 'List Active Pets' to see current pets and debug info")
-print("3. Click 'Start Monitoring' to auto-check every 10 seconds")
-print(string.format("Target age: %d", targetAge))
-
--- Do an initial check after a few seconds
-spawn(function()
-    wait(3)
-    print("\n--- INITIAL CHECK ---")
-    checkPetAges()
-end)
+print("Enhanced Pet Age Monitor loaded!")
+print("1. Open your pet menu in-game")
+print("2. Click 'Refresh Pets' to load your pets")
+print("3. Select pets you want to monitor")
+print("4. Click 'Start Monitor' to begin monitoring")
+print("Target age:", targetAge)
