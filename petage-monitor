@@ -284,8 +284,8 @@ gui.Parent = game.CoreGui
 gui.ResetOnSpawn = false
 gui.Name = "EnhancedPetMonitor"
 
--- Function to clean up and close the script
 local function cleanup()
+    print("cleanup fired")
     if isMonitoring and monitorConnection then
         monitorConnection:Disconnect()
         monitorConnection = nil
@@ -294,7 +294,7 @@ local function cleanup()
     allPetsData = {}
     lastNotifiedPets = {}
 
-    if gui then
+    if gui and gui.Parent then
         gui:Destroy()
         gui = nil
     end
