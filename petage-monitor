@@ -278,6 +278,12 @@ local function showNotification(message)
     sound.Ended:Connect(function() sound:Destroy() end)
 end
 
+-- Create main GUI
+local gui = Instance.new("ScreenGui")
+gui.Parent = game.CoreGui
+gui.ResetOnSpawn = false
+gui.Name = "EnhancedPetMonitor"
+
 -- Function to clean up and close the script
 local function cleanup()
     if isMonitoring and monitorConnection then
@@ -287,14 +293,14 @@ local function cleanup()
     selectedPets = {}
     allPetsData = {}
     lastNotifiedPets = {}
-    gui:Destroy()
+
+    if gui then
+        gui:Destroy()
+        gui = nil
+    end
+
     print("Enhanced Pet Age Monitor closed and cleaned up.")
 end
-
--- Create main GUI
-local gui = Instance.new("ScreenGui", game.CoreGui)
-gui.ResetOnSpawn = false
-gui.Name = "EnhancedPetMonitor"
 
 local mainFrame = Instance.new("Frame", gui)
 mainFrame.Size = UDim2.fromOffset(500, 400)
