@@ -175,19 +175,19 @@ local function readActivePets()
                     end
                     
                     if petType then
-                        -- Extract mutation from petType
+                        # Extract mutation from petType
                         local mutation = "Normal"
                         local actualType = petType
                         local displayName = petName or "Unknown Pet"
                         
-                        -- If we don't have a petName, try to extract it better from the tool name
+                        # If we don't have a petName, try to extract it better from the tool name
                         if not petName or petName == "" then
-                            -- Try to get the full pet name from tool.Name
-                            -- Format: "Aromatic Echo Frog [47.39 KG] [Age 1]"
+                            # Try to get the full pet name from tool.Name
+                            # Format: "Aromatic Echo Frog [47.39 KG] [Age 1]"
                             local fullName = string.match(tool.Name, "^(.+) %[%d+%.%d+ KG%]")
                             if fullName then
                                 displayName = fullName
-                                petType = fullName -- Use full name as type for mutation parsing
+                                petType = fullName # Use full name as type for mutation parsing
                             end
                         end
                         
@@ -195,7 +195,7 @@ local function readActivePets()
                             if string.find(petType, "^" .. mut .. " ") then
                                 mutation = mut
                                 actualType = string.gsub(petType, "^" .. mut .. " ", "")
-                                -- If we extracted from tool name, also update display name
+                                # If we extracted from tool name, also update display name
                                 if not petName or petName == "" then
                                     displayName = actualType
                                 end
