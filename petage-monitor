@@ -1,4 +1,5 @@
---[[
+-- Button events
+refreshBtn.MouseButton1Click:Connect(refreshPetList)--[[
     Enhanced Pet Age Monitor with Selective Monitoring
     Features: Mutation detection, selective pet monitoring, improved GUI
 ]]
@@ -311,12 +312,26 @@ corner.CornerRadius = UDim.new(0, 12)
 
 -- Title
 local title = Instance.new("TextLabel", mainFrame)
-title.Size = UDim2.new(1, 0, 0.1, 0)
+title.Size = UDim2.new(0.9, 0, 0.1, 0)
+title.Position = UDim2.new(0, 0, 0, 0)
 title.BackgroundTransparency = 1
 title.Text = "Enhanced Pet Age Monitor"
 title.TextColor3 = Color3.new(1, 1, 1)
 title.Font = Enum.Font.GothamBold
 title.TextScaled = true
+
+-- Close button
+local closeBtn = Instance.new("TextButton", mainFrame)
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextScaled = true
+
+local closeBtnCorner = Instance.new("UICorner", closeBtn)
+closeBtnCorner.CornerRadius = UDim.new(0, 15)
 
 -- Control buttons frame
 local controlFrame = Instance.new("Frame", mainFrame)
@@ -455,8 +470,27 @@ local function refreshPetList()
     statusLabel.Text = string.format("Found %d pets. Target age: %d", count, targetAge)
 end
 
--- Button events
-refreshBtn.MouseButton1Click:Connect(refreshPetList)
+-- Function to clean up and close the script
+local function cleanup()
+    -- Stop monitoring if active
+    if isMonitoring and monitorConnection then
+        monitorConnection:Disconnect()
+        monitorConnection = nil
+    end
+    
+    -- Clear data
+    selectedPets = {}
+    allPetsData = {}
+    lastNotifiedPets = {}
+    
+    -- Remove GUI
+    gui:Destroy()
+    
+    print("Enhanced Pet Age Monitor closed and cleaned up.")
+end
+
+-- Close button event
+closeBtn.MouseButton1Click:Connect(cleanup)
 
 selectAllBtn.MouseButton1Click:Connect(function()
     local allSelected = true
