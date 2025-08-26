@@ -299,6 +299,9 @@ end
 local gui = Instance.new("ScreenGui", game.CoreGui)
 gui.ResetOnSpawn = false
 gui.Name = "EnhancedPetMonitor"
+gui.Enabled = true
+
+print("Creating main frame...")
 
 local mainFrame = Instance.new("Frame", gui)
 mainFrame.Size = UDim2.fromOffset(500, 400)
@@ -306,6 +309,9 @@ mainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
 mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 mainFrame.Active = true
 mainFrame.Draggable = true
+mainFrame.Visible = true
+
+print("Main frame created with size:", mainFrame.Size, "position:", mainFrame.Position)
 
 local corner = Instance.new("UICorner", mainFrame)
 corner.CornerRadius = UDim.new(0, 12)
