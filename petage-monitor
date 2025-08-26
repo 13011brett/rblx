@@ -59,8 +59,8 @@ local function readActivePets()
         if string.match(child.Name, "{.*%-.*%-.*%-.*%-.*}") then
             print(string.format("Found UUID folder: %s", child.Name))
             
-            -- Try to find PET_AGE TextLabel in this UUID folder
-            local petAge, petName, petType
+            -- Try to find PET_AGE TextLabel and mutation info in this UUID folder
+            local petAge, petName, petType, petMutation
             
             -- Method 1: Look in Main/Item structure
             local main = child:FindFirstChild("Main")
@@ -70,6 +70,13 @@ local function readActivePets()
                     petAge = item:FindFirstChild("PET_AGE")
                     petName = item:FindFirstChild("PET_NAME")
                     petType = item:FindFirstChild("PET_TYPE")
+                    
+                    -- Look for mutation-related labels
+                    petMutation = item:FindFirstChild("PET_MUTATION") or 
+                                item:FindFirstChild("MUTATION") or
+                                item:FindFirstChild("PET_RARITY") or
+                                item:FindFirstChild("RARITY")
+                    
                     print(string.format("  Checking Main/Item structure..."))
                 end
             end
@@ -79,33 +86,47 @@ local function readActivePets()
                 petAge = child:FindFirstChild("PET_AGE")
                 petName = child:FindFirstChild("PET_NAME")
                 petType = child:FindFirstChild("PET_TYPE")
+                
+                -- Look for mutation-related labels
+                petMutation = child:FindFirstChild("PET_MUTATION") or 
+                            child:FindFirstChild("MUTATION") or
+                            child:FindFirstChild("PET_RARITY") or
+                            child:FindFirstChild("RARITY")
+                
                 print(string.format("  Checking direct children..."))
             end
             
             -- Method 3: Recursive search (in case structure is deeper)
             if not petAge then
                 local function findPetAgeRecursive(parent, depth)
-                    if depth > 5 then return nil, nil, nil end
+                    if depth > 5 then return nil, nil, nil, nil end
                     
                     for _, subChild in pairs(parent:GetChildren()) do
                         if subChild.Name == "PET_AGE" and subChild:IsA("TextLabel") then
                             print(string.format("    Found PET_AGE at depth %d in %s", depth, parent.Name))
                             local foundName = subChild.Parent:FindFirstChild("PET_NAME")
                             local foundType = subChild.Parent:FindFirstChild("PET_TYPE")
-                            return subChild, foundName, foundType
+                            
+                            -- Look for mutation in same parent
+                            local foundMutation = subChild.Parent:FindFirstChild("PET_MUTATION") or 
+                                                subChild.Parent:FindFirstChild("MUTATION") or
+                                                subChild.Parent:FindFirstChild("PET_RARITY") or
+                                                subChild.Parent:FindFirstChild("RARITY")
+                            
+                            return subChild, foundName, foundType, foundMutation
                         end
                         
                         if subChild:IsA("GuiObject") then
-                            local foundAge, foundName, foundType = findPetAgeRecursive(subChild, depth + 1)
+                            local foundAge, foundName, foundType, foundMutation = findPetAgeRecursive(subChild, depth + 1)
                             if foundAge then
-                                return foundAge, foundName, foundType
+                                return foundAge, foundName, foundType, foundMutation
                             end
                         end
                     end
-                    return nil, nil, nil
+                    return nil, nil, nil, nil
                 end
                 
-                petAge, petName, petType = findPetAgeRecursive(child, 0)
+                petAge, petName, petType, petMutation = findPetAgeRecursive(child, 0)
             end
             
             -- If we found PET_AGE, extract the data
@@ -119,11 +140,13 @@ local function readActivePets()
                     age = ageNum,
                     name = petName and petName.Text or "Unknown",
                     type = petType and petType.Text or "Unknown",
+                    mutation = petMutation and petMutation.Text or "None",
                     ageText = ageText
                 }
                 
                 table.insert(pets, petInfo)
-                print(string.format("  SUCCESS: %s (%s) - Age: %d", petInfo.name, petInfo.type, petInfo.age))
+                print(string.format("  SUCCESS: %s (%s) - Age: %d - Mutation: %s", 
+                    petInfo.name, petInfo.type, petInfo.age, petInfo.mutation))
             else
                 print(string.format("  Could not find PET_AGE TextLabel in %s", child.Name))
                 
@@ -276,8 +299,8 @@ listButton.MouseButton1Click:Connect(function()
     
     if #pets > 0 then
         for i, pet in pairs(pets) do
-            print(string.format("%d. %s (%s) - Age: %d - UUID: %s", 
-                i, pet.name, pet.type, pet.age, pet.uuid))
+            print(string.format("%d. %s (%s) - Age: %d - Mutation: %s - UUID: %s", 
+                i, pet.name, pet.type, pet.age, pet.mutation, pet.uuid))
         end
     else
         print("No active pets found. Make sure your pet menu is open in the game.")
