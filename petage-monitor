@@ -150,11 +150,16 @@ local function readActivePets()
             else
                 print(string.format("  Could not find PET_AGE TextLabel in %s", child.Name))
                 
-                -- Debug: List all children to help troubleshoot
-                print("  Children of this UUID folder:")
+                -- Debug: List all children and specifically highlight TextLabels
+                print("  All children in this UUID folder:")
                 local function listChildren(parent, indent)
                     for _, subChild in pairs(parent:GetChildren()) do
-                        print(string.format("%s%s (%s)", indent, subChild.Name, subChild.ClassName))
+                        if subChild:IsA("TextLabel") then
+                            local text = subChild.Text or ""
+                            print(string.format("%s📝 %s (%s) Text: '%s'", indent, subChild.Name, subChild.ClassName, text))
+                        else
+                            print(string.format("%s%s (%s)", indent, subChild.Name, subChild.ClassName))
+                        end
                         if subChild:IsA("GuiObject") and #subChild:GetChildren() > 0 then
                             listChildren(subChild, indent .. "  ")
                         end
