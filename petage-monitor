@@ -28,29 +28,55 @@ print("=== ENHANCED PET AGE MONITOR ===")
 -- Function to read pet data from ActivePetUI and Backpack
 local function readActivePets()
     local pets = {}
+    print("\n=== DEBUGGING PET DETECTION ===")
     
     -- Method 1: Check ActivePetUI (equipped pets)
+    print("1. Checking ActivePetUI...")
     local activePetUI = LocalPlayer.PlayerGui:FindFirstChild("ActivePetUI")
     if activePetUI then
+        print("   ActivePetUI found")
         local scrollingFrame = activePetUI
+        local path = "ActivePetUI"
+        
         for _, pathPart in pairs({"Frame", "Main", "PetDisplay", "ScrollingFrame"}) do
             scrollingFrame = scrollingFrame:FindFirstChild(pathPart)
-            if not scrollingFrame then break end
+            path = path .. " -> " .. pathPart
+            if not scrollingFrame then
+                print("   FAILED at:", path)
+                break
+            else
+                print("   SUCCESS:", path)
+            end
         end
         
         if scrollingFrame then
+            local childCount = 0
             for _, child in pairs(scrollingFrame:GetChildren()) do
+                childCount = childCount + 1
+                print(string.format("   Child %d: %s (%s)", childCount, child.Name, child.ClassName))
+                
                 if string.match(child.Name, "{.*%-.*%-.*%-.*%-.*}") then
+                    print("     -> UUID MATCH! Processing...")
                     local petAge, petName, petType
                     
                     local main = child:FindFirstChild("Main")
                     if main then
+                        print("     -> Found Main")
                         local item = main:FindFirstChild("Item")
                         if item then
+                            print("     -> Found Item")
                             petAge = item:FindFirstChild("PET_AGE")
                             petName = item:FindFirstChild("PET_NAME")
                             petType = item:FindFirstChild("PET_TYPE")
+                            
+                            print(string.format("     -> PET_AGE: %s", petAge and petAge.Text or "nil"))
+                            print(string.format("     -> PET_NAME: %s", petName and petName.Text or "nil"))
+                            print(string.format("     -> PET_TYPE: %s", petType and petType.Text or "nil"))
+                        else
+                            print("     -> No Item found")
                         end
+                    else
+                        print("     -> No Main found")
                     end
                     
                     if petAge and petAge:IsA("TextLabel") then
@@ -81,65 +107,118 @@ local function readActivePets()
                             location = "Equipped",
                             selected = selectedPets[child.Name] or false
                         }
+                        
+                        print(string.format("     -> ADDED EQUIPPED PET: %s (%s) Age: %d", petNameText, mutation, ageNum))
+                    else
+                        print("     -> No valid PET_AGE TextLabel found")
                     end
                 end
             end
+            print(string.format("   Total children in ScrollingFrame: %d", childCount))
         end
+    else
+        print("   ActivePetUI not found")
     end
     
     -- Method 2: Check Backpack (inventory pets)
+    print("\n2. Checking Backpack...")
     if LocalPlayer.Backpack then
+        print("   Backpack found")
+        local toolCount = 0
+        local petToolCount = 0
+        
         for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
-            if tool:IsA("Tool") and tool:GetAttribute("ItemType") == "Pet" then
-                local petUUID = tool:GetAttribute("PET_UUID")
-                local petAge = tool:GetAttribute("Age") or tool:GetAttribute("PetAge") or 0
-                local petName = tool:GetAttribute("PetName") or tool:GetAttribute("Name") or "Unknown"
-                local petType = tool:GetAttribute("PetType") or tool:GetAttribute("Type") or "Unknown"
+            if tool:IsA("Tool") then
+                toolCount = toolCount + 1
+                print(string.format("   Tool %d: %s", toolCount, tool.Name))
                 
-                -- If no direct age attribute, try parsing from tool name as fallback
-                if petAge == 0 then
-                    local ageMatch = string.match(tool.Name, "%[Age (%d+)%]")
-                    if ageMatch then
-                        petAge = tonumber(ageMatch) or 0
+                local itemType = tool:GetAttribute("ItemType")
+                print(string.format("     -> ItemType: %s", itemType or "nil"))
+                
+                if itemType == "Pet" then
+                    petToolCount = petToolCount + 1
+                    print(string.format("     -> PET TOOL FOUND! (#%d)", petToolCount))
+                    
+                    local petUUID = tool:GetAttribute("PET_UUID")
+                    local petAge = tool:GetAttribute("Age") or tool:GetAttribute("PetAge") or 0
+                    local petName = tool:GetAttribute("PetName") or tool:GetAttribute("Name")
+                    local petType = tool:GetAttribute("PetType") or tool:GetAttribute("Type")
+                    
+                    print(string.format("     -> PET_UUID: %s", petUUID or "nil"))
+                    print(string.format("     -> Age: %s", tostring(petAge)))
+                    print(string.format("     -> PetName: %s", petName or "nil"))
+                    print(string.format("     -> PetType: %s", petType or "nil"))
+                    
+                    -- List all attributes for debugging
+                    print("     -> All attributes:")
+                    local attrs = tool:GetAttributes()
+                    for attr, value in pairs(attrs) do
+                        print(string.format("       %s = %s (%s)", attr, tostring(value), type(value)))
+                    end
+                    
+                    -- If no direct age attribute, try parsing from tool name as fallback
+                    if petAge == 0 then
+                        local ageMatch = string.match(tool.Name, "%[Age (%d+)%]")
+                        if ageMatch then
+                            petAge = tonumber(ageMatch) or 0
+                            print(string.format("     -> Parsed age from name: %d", petAge))
+                        end
+                    end
+                    
+                    -- If no direct type, try parsing from tool name
+                    if not petType then
+                        local nameAndType = string.match(tool.Name, "^(.+) %[%d+%.%d+ KG%]")
+                        if nameAndType then
+                            petType = nameAndType
+                            print(string.format("     -> Parsed type from name: %s", petType))
+                        end
+                    end
+                    
+                    if petType then
+                        -- Extract mutation from petType
+                        local mutation = "Normal"
+                        local actualType = petType
+                        
+                        for _, mut in pairs(mutations) do
+                            if string.find(petType, "^" .. mut .. " ") then
+                                mutation = mut
+                                actualType = string.gsub(petType, "^" .. mut .. " ", "")
+                                break
+                            end
+                        end
+                        
+                        local uuid = petUUID or ("BACKPACK_" .. tool:GetDebugId())
+                        
+                        pets[uuid] = {
+                            uuid = uuid,
+                            age = petAge,
+                            name = petName or actualType,
+                            type = actualType,
+                            mutation = mutation,
+                            fullType = petType,
+                            location = "Backpack",
+                            toolRef = tool,
+                            selected = selectedPets[uuid] or false
+                        }
+                        
+                        print(string.format("     -> ADDED BACKPACK PET: %s (%s) Age: %d UUID: %s", 
+                            petName or actualType, mutation, petAge, uuid))
+                    else
+                        print("     -> Could not determine pet type, skipping")
                     end
                 end
-                
-                -- If no direct type, try parsing from tool name
-                if petType == "Unknown" then
-                    local nameAndType = string.match(tool.Name, "^(.+) %[%d+%.%d+ KG%]")
-                    if nameAndType then
-                        petType = nameAndType
-                    end
-                end
-                
-                -- Extract mutation from petType
-                local mutation = "Normal"
-                local actualType = petType
-                
-                for _, mut in pairs(mutations) do
-                    if string.find(petType, "^" .. mut .. " ") then
-                        mutation = mut
-                        actualType = string.gsub(petType, "^" .. mut .. " ", "")
-                        break
-                    end
-                end
-                
-                local uuid = petUUID or ("BACKPACK_" .. tool:GetDebugId())
-                
-                pets[uuid] = {
-                    uuid = uuid,
-                    age = petAge,
-                    name = petName,
-                    type = actualType,
-                    mutation = mutation,
-                    fullType = petType,
-                    location = "Backpack",
-                    toolRef = tool,
-                    selected = selectedPets[uuid] or false
-                }
             end
         end
+        
+        print(string.format("   Total tools in backpack: %d", toolCount))
+        print(string.format("   Pet tools found: %d", petToolCount))
+    else
+        print("   Backpack not found")
     end
+    
+    local totalPets = 0
+    for _ in pairs(pets) do totalPets = totalPets + 1 end
+    print(string.format("\n=== TOTAL PETS DETECTED: %d ===", totalPets))
     
     allPetsData = pets
     return pets
