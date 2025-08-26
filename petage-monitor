@@ -25,63 +25,111 @@ local mutations = {
 
 print("=== ENHANCED PET AGE MONITOR ===")
 
--- Function to read pet data from ActivePetUI
+-- Function to read pet data from ActivePetUI and Backpack
 local function readActivePets()
-    local activePetUI = LocalPlayer.PlayerGui:FindFirstChild("ActivePetUI")
-    if not activePetUI then return {} end
-    
-    local scrollingFrame = activePetUI
-    for _, pathPart in pairs({"Frame", "Main", "PetDisplay", "ScrollingFrame"}) do
-        scrollingFrame = scrollingFrame:FindFirstChild(pathPart)
-        if not scrollingFrame then return {} end
-    end
-    
     local pets = {}
     
-    for _, child in pairs(scrollingFrame:GetChildren()) do
-        if string.match(child.Name, "{.*%-.*%-.*%-.*%-.*}") then
-            local petAge, petName, petType
-            
-            -- Search for pet data in Main/Item structure
-            local main = child:FindFirstChild("Main")
-            if main then
-                local item = main:FindFirstChild("Item")
-                if item then
-                    petAge = item:FindFirstChild("PET_AGE")
-                    petName = item:FindFirstChild("PET_NAME")
-                    petType = item:FindFirstChild("PET_TYPE")
-                end
-            end
-            
-            if petAge and petAge:IsA("TextLabel") then
-                local ageText = petAge.Text
-                local ageNum = tonumber(string.match(ageText, "%d+")) or 0
-                local petNameText = petName and petName.Text or "Unknown"
-                local petTypeText = petType and petType.Text or "Unknown"
-                
-                -- Extract mutation from PET_TYPE using the complete mutation list
-                local mutation = "Normal"
-                local actualType = petTypeText
-                
-                for _, mut in pairs(mutations) do
-                    if string.find(petTypeText, "^" .. mut .. " ") then
-                        mutation = mut
-                        actualType = string.gsub(petTypeText, "^" .. mut .. " ", "")
-                        break
+    -- Method 1: Check ActivePetUI (equipped pets)
+    local activePetUI = LocalPlayer.PlayerGui:FindFirstChild("ActivePetUI")
+    if activePetUI then
+        local scrollingFrame = activePetUI
+        for _, pathPart in pairs({"Frame", "Main", "PetDisplay", "ScrollingFrame"}) do
+            scrollingFrame = scrollingFrame:FindFirstChild(pathPart)
+            if not scrollingFrame then break end
+        end
+        
+        if scrollingFrame then
+            for _, child in pairs(scrollingFrame:GetChildren()) do
+                if string.match(child.Name, "{.*%-.*%-.*%-.*%-.*}") then
+                    local petAge, petName, petType
+                    
+                    local main = child:FindFirstChild("Main")
+                    if main then
+                        local item = main:FindFirstChild("Item")
+                        if item then
+                            petAge = item:FindFirstChild("PET_AGE")
+                            petName = item:FindFirstChild("PET_NAME")
+                            petType = item:FindFirstChild("PET_TYPE")
+                        end
+                    end
+                    
+                    if petAge and petAge:IsA("TextLabel") then
+                        local ageText = petAge.Text
+                        local ageNum = tonumber(string.match(ageText, "%d+")) or 0
+                        local petNameText = petName and petName.Text or "Unknown"
+                        local petTypeText = petType and petType.Text or "Unknown"
+                        
+                        -- Extract mutation
+                        local mutation = "Normal"
+                        local actualType = petTypeText
+                        
+                        for _, mut in pairs(mutations) do
+                            if string.find(petTypeText, "^" .. mut .. " ") then
+                                mutation = mut
+                                actualType = string.gsub(petTypeText, "^" .. mut .. " ", "")
+                                break
+                            end
+                        end
+                        
+                        pets[child.Name] = {
+                            uuid = child.Name,
+                            age = ageNum,
+                            name = petNameText,
+                            type = actualType,
+                            mutation = mutation,
+                            fullType = petTypeText,
+                            location = "Equipped",
+                            selected = selectedPets[child.Name] or false
+                        }
                     end
                 end
+            end
+        end
+    end
+    
+    -- Method 2: Check Backpack (inventory pets)
+    if LocalPlayer.Backpack then
+        for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+            if tool:IsA("Tool") and tool:GetAttribute("ItemType") == "Pet" then
+                -- Try to extract age from tool name or attributes
+                local toolName = tool.Name
+                local ageMatch = string.match(toolName, "%[(%d+%.%d+) KG%] %[Age (%d+)%]")
                 
-                local petInfo = {
-                    uuid = child.Name,
-                    age = ageNum,
-                    name = petNameText,
-                    type = actualType,
-                    mutation = mutation,
-                    fullType = petTypeText,
-                    selected = selectedPets[child.Name] or false
-                }
-                
-                pets[child.Name] = petInfo -- Use UUID as key
+                if ageMatch then
+                    local _, ageNum = string.match(toolName, "%[(%d+%.%d+) KG%] %[Age (%d+)%]")
+                    ageNum = tonumber(ageNum) or 0
+                    
+                    -- Extract pet name and mutation from tool name
+                    -- Format: "Mutation PetType [Weight] [Age]"
+                    local nameAndType = string.match(toolName, "^(.+) %[%d+%.%d+ KG%]")
+                    if nameAndType then
+                        local mutation = "Normal"
+                        local petType = nameAndType
+                        
+                        -- Check for mutations
+                        for _, mut in pairs(mutations) do
+                            if string.find(nameAndType, "^" .. mut .. " ") then
+                                mutation = mut
+                                petType = string.gsub(nameAndType, "^" .. mut .. " ", "")
+                                break
+                            end
+                        end
+                        
+                        local uuid = "BACKPACK_" .. tool:GetDebugId() -- Generate unique ID
+                        
+                        pets[uuid] = {
+                            uuid = uuid,
+                            age = ageNum,
+                            name = petType, -- Using type as name for backpack pets
+                            type = petType,
+                            mutation = mutation,
+                            fullType = nameAndType,
+                            location = "Backpack",
+                            toolRef = tool,
+                            selected = selectedPets[uuid] or false
+                        }
+                    end
+                end
             end
         end
     end
@@ -258,8 +306,8 @@ local function createPetEntry(uuid, petData)
     petLabel.Size = UDim2.new(1, -130, 1, 0)
     petLabel.Position = UDim2.new(0, 50, 0, 0)
     petLabel.BackgroundTransparency = 1
-    petLabel.Text = string.format("%s (%s %s) - Age: %d", 
-        petData.name, petData.mutation, petData.type, petData.age)
+    petLabel.Text = string.format("%s (%s %s) - Age: %d [%s]", 
+        petData.name, petData.mutation, petData.type, petData.age, petData.location)
     petLabel.TextColor3 = Color3.new(1, 1, 1)
     petLabel.Font = Enum.Font.Gotham
     petLabel.TextScaled = true
