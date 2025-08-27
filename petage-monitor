@@ -1,6 +1,6 @@
 --[[
     Enhanced Pet Age Monitor with Selective Monitoring
-    Features: Mutation detection, selective pet monitoring, improved GUI
+    Features: Mutation detection via PET_DESCRIPTION, PET_LEVEL instead of PET_AGE
 ]]
 
 -- Services
@@ -57,7 +57,7 @@ local function readActivePets()
                 
                 if string.match(child.Name, "{.*%-.*%-.*%-.*%-.*}") then
                     print("     -> UUID MATCH! Processing...")
-                    local petAge, petName, petType
+                    local petAge, petName, petType, petDescription
                     
                     local main = child:FindFirstChild("Main")
                     if main then
@@ -65,13 +65,15 @@ local function readActivePets()
                         local item = main:FindFirstChild("Item")
                         if item then
                             print("     -> Found Item")
-                            petAge = item:FindFirstChild("PET_AGE")
+                            petAge = item:FindFirstChild("PET_LEVEL")
                             petName = item:FindFirstChild("PET_NAME")
                             petType = item:FindFirstChild("PET_TYPE")
+                            petDescription = item:FindFirstChild("PET_DESCRIPTION")
                             
-                            print(string.format("     -> PET_AGE: %s", petAge and petAge.Text or "nil"))
+                            print(string.format("     -> PET_LEVEL: %s", petAge and petAge.Text or "nil"))
                             print(string.format("     -> PET_NAME: %s", petName and petName.Text or "nil"))
                             print(string.format("     -> PET_TYPE: %s", petType and petType.Text or "nil"))
+                            print(string.format("     -> PET_DESCRIPTION: %s", petDescription and petDescription.Text or "nil"))
                         else
                             print("     -> No Item found")
                         end
@@ -84,15 +86,14 @@ local function readActivePets()
                         local ageNum = tonumber(string.match(ageText, "%d+")) or 0
                         local petNameText = petName and petName.Text or "Unknown"
                         local petTypeText = petType and petType.Text or "Unknown"
+                        local petDescText = petDescription and petDescription.Text or ""
                         
-                        -- Extract mutation
+                        -- Extract mutation from PET_DESCRIPTION instead of PET_TYPE
                         local mutation = "Normal"
-                        local actualType = petTypeText
                         
                         for _, mut in pairs(mutations) do
-                            if string.find(petTypeText, "^" .. mut .. " ") then
+                            if string.find(petDescText, mut) then
                                 mutation = mut
-                                actualType = string.gsub(petTypeText, "^" .. mut .. " ", "")
                                 break
                             end
                         end
@@ -101,16 +102,17 @@ local function readActivePets()
                             uuid = child.Name,
                             age = ageNum,
                             name = petNameText,
-                            type = actualType,
+                            type = petTypeText, -- Keep original type without mutation prefix
                             mutation = mutation,
                             fullType = petTypeText,
+                            description = petDescText,
                             location = "Equipped",
                             selected = selectedPets[child.Name] or false
                         }
                         
-                        print(string.format("     -> ADDED EQUIPPED PET: %s (%s) Age: %d", petNameText, mutation, ageNum))
+                        print(string.format("     -> ADDED EQUIPPED PET: %s (%s) Level: %d", petNameText, mutation, ageNum))
                     else
-                        print("     -> No valid PET_AGE TextLabel found")
+                        print("     -> No valid PET_LEVEL TextLabel found")
                     end
                 end
             end
@@ -140,14 +142,16 @@ local function readActivePets()
                     print(string.format("     -> PET TOOL FOUND! (#%d)", petToolCount))
                     
                     local petUUID = tool:GetAttribute("PET_UUID")
-                    local petAge = tool:GetAttribute("Age") or tool:GetAttribute("PetAge") or 0
+                    local petAge = tool:GetAttribute("Level") or tool:GetAttribute("PetLevel") or tool:GetAttribute("PET_LEVEL") or 0
                     local petName = tool:GetAttribute("PET_NAME") or tool:GetAttribute("Name")
                     local petType = tool:GetAttribute("PET_TYPE") or tool:GetAttribute("Type")
+                    local petDescription = tool:GetAttribute("PET_DESCRIPTION") or tool:GetAttribute("Description") or ""
                     
                     print(string.format("     -> PET_UUID: %s", petUUID or "nil"))
-                    print(string.format("     -> Age: %s", tostring(petAge)))
+                    print(string.format("     -> Level: %s", tostring(petAge)))
                     print(string.format("     -> PetName: %s", petName or "nil"))
                     print(string.format("     -> PetType: %s", petType or "nil"))
+                    print(string.format("     -> PetDescription: %s", petDescription))
                     
                     -- List all attributes for debugging
                     print("     -> All attributes:")
@@ -156,12 +160,12 @@ local function readActivePets()
                         print(string.format("       %s = %s (%s)", attr, tostring(value), type(value)))
                     end
                     
-                    -- If no direct age attribute, try parsing from tool name as fallback
+                    -- If no direct level attribute, try parsing from tool name as fallback
                     if petAge == 0 then
-                        local ageMatch = string.match(tool.Name, "%[Age (%d+)%]")
-                        if ageMatch then
-                            petAge = tonumber(ageMatch) or 0
-                            print(string.format("     -> Parsed age from name: %d", petAge))
+                        local levelMatch = string.match(tool.Name, "%[Age (%d+)%]") or string.match(tool.Name, "%[Level (%d+)%]")
+                        if levelMatch then
+                            petAge = tonumber(levelMatch) or 0
+                            print(string.format("     -> Parsed level from name: %d", petAge))
                         end
                     end
                     
@@ -175,14 +179,12 @@ local function readActivePets()
                     end
                     
                     if petType then
-                        -- Extract mutation from petType
+                        -- Extract mutation from petDescription instead of petType
                         local mutation = "Normal"
-                        local actualType = petType
                         
                         for _, mut in pairs(mutations) do
-                            if string.find(petType, "^" .. mut .. " ") then
+                            if string.find(petDescription, mut) then
                                 mutation = mut
-                                actualType = string.gsub(petType, "^" .. mut .. " ", "")
                                 break
                             end
                         end
@@ -192,17 +194,18 @@ local function readActivePets()
                         pets[uuid] = {
                             uuid = uuid,
                             age = petAge,
-                            name = petName or actualType,
-                            type = actualType,
+                            name = petName or petType, -- Use petType as fallback instead of actualType
+                            type = petType, -- Keep original type without mutation prefix
                             mutation = mutation,
                             fullType = petType,
+                            description = petDescription,
                             location = "Backpack",
                             toolRef = tool,
                             selected = selectedPets[uuid] or false
                         }
                         
-                        print(string.format("     -> ADDED BACKPACK PET: %s (%s) Age: %d UUID: %s", 
-                            petName or actualType, mutation, petAge, uuid))
+                        print(string.format("     -> ADDED BACKPACK PET: %s (%s) Level: %d UUID: %s", 
+                            petName or petType, mutation, petAge, uuid))
                     else
                         print("     -> Could not determine pet type, skipping")
                     end
@@ -234,7 +237,7 @@ local function checkSelectedPets()
             local key = uuid .. "_" .. pet.age
             if not lastNotifiedPets[key] then
                 lastNotifiedPets[key] = true
-                local message = string.format("%s (%s %s) reached age %d!", 
+                local message = string.format("%s (%s %s) reached level %d!", 
                     pet.name, pet.mutation, pet.type, pet.age)
                 table.insert(alerts, message)
             end
@@ -465,7 +468,7 @@ local function createPetEntry(uuid, petData)
     petLabel.Size = UDim2.new(1, -130, 1, 0)
     petLabel.Position = UDim2.new(0, 50, 0, 0)
     petLabel.BackgroundTransparency = 1
-    petLabel.Text = string.format("%s (%s %s) - Age: %d [%s]", 
+    petLabel.Text = string.format("%s (%s %s) - Level: %d [%s]", 
         petData.name, petData.mutation, petData.type, petData.age, petData.location)
     petLabel.TextColor3 = Color3.new(1, 1, 1)
     petLabel.Font = Enum.Font.Gotham
@@ -509,7 +512,7 @@ local function refreshPetList()
     
     -- Update canvas size
     scrollFrame.CanvasSize = UDim2.fromOffset(0, count * 55)
-    statusLabel.Text = string.format("Found %d pets. Target age: %d", count, targetAge)
+    statusLabel.Text = string.format("Found %d pets. Target level: %d", count, targetAge)
 end
 
 -- Button events
@@ -544,7 +547,7 @@ monitorBtn.MouseButton1Click:Connect(function()
             if selectedPets[_] then selectedCount = selectedCount + 1 end
         end
         
-        statusLabel.Text = string.format("Monitoring %d pets for age %d", selectedCount, targetAge)
+        statusLabel.Text = string.format("Monitoring %d pets for level %d", selectedCount, targetAge)
         
         local lastCheck = tick()
         monitorConnection = RunService.Heartbeat:Connect(function()
@@ -575,4 +578,4 @@ print("1. Open your pet menu in-game")
 print("2. Click 'Refresh Pets' to load your pets")
 print("3. Select pets you want to monitor")
 print("4. Click 'Start Monitor' to begin monitoring")
-print("Target age:", targetAge)
+print("Target level:", targetAge)
