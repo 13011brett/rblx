@@ -38,7 +38,7 @@ local function readActivePets()
         local scrollingFrame = activePetUI
         local path = "ActivePetUI"
         
-        for _, pathPart in pairs({"Frame", "Main", "PetDisplay", "ScrollingFrame"}) do
+        for _, pathPart in pairs({"Frame", "Main", "Holder", "PetDisplay", "ScrollingFrame"}) do
             scrollingFrame = scrollingFrame:FindFirstChild(pathPart)
             path = path .. " -> " .. pathPart
             if not scrollingFrame then
@@ -57,62 +57,110 @@ local function readActivePets()
                 
                 if string.match(child.Name, "{.*%-.*%-.*%-.*%-.*}") then
                     print("     -> UUID MATCH! Processing...")
-                    local petAge, petName, petType, petDescription
                     
-                    local main = child:FindFirstChild("Main")
-                    if main then
-                        print("     -> Found Main")
-                        local item = main:FindFirstChild("Item")
-                        if item then
-                            print("     -> Found Item")
-                            petAge = item:FindFirstChild("PET_LEVEL")
-                            petName = item:FindFirstChild("PET_NAME")
-                            petType = item:FindFirstChild("PET_TYPE")
-                            petDescription = item:FindFirstChild("PET_DESCRIPTION")
+                    -- Find the View button to click
+                    local viewButton = child:FindFirstChild("View")
+                    if not viewButton then
+                        -- Try different possible button names/locations
+                        local main = child:FindFirstChild("Main")
+                        if main then
+                            viewButton = main:FindFirstChild("View") or main:FindFirstChild("ViewButton")
+                        end
+                    end
+                    
+                    if viewButton and viewButton:IsA("TextButton") then
+                        print("     -> Found View button, clicking...")
+                        
+                        -- Click the view button to open pet card
+                        viewButton.MouseButton1Click:Fire()
+                        
+                        -- Wait a moment for the pet card to load
+                        wait(0.5)
+                        
+                        -- Now try to find the pet card with detailed data
+                        local petCard = LocalPlayer.PlayerGui:FindFirstChild("PetCard") or 
+                                       LocalPlayer.PlayerGui:FindFirstChild("PetView") or
+                                       LocalPlayer.PlayerGui:FindFirstChild("ActivePetUI"):FindFirstChild("PetCard")
+                        
+                        local petAge, petName, petType, petDescription
+                        
+                        if petCard then
+                            print("     -> Pet card found, extracting data...")
+                            
+                            -- Try to find the data elements in the pet card
+                            local function findInChildren(parent, elementName)
+                                if not parent then return nil end
+                                
+                                -- Check direct children first
+                                local found = parent:FindFirstChild(elementName)
+                                if found then return found end
+                                
+                                -- Recursively search deeper
+                                for _, child in pairs(parent:GetChildren()) do
+                                    if child:IsA("GuiObject") then
+                                        found = findInChildren(child, elementName)
+                                        if found then return found end
+                                    end
+                                end
+                                
+                                return nil
+                            end
+                            
+                            petAge = findInChildren(petCard, "PET_LEVEL")
+                            petName = findInChildren(petCard, "PET_NAME")
+                            petType = findInChildren(petCard, "PET_TYPE") 
+                            petDescription = findInChildren(petCard, "PET_DESCRIPTION")
                             
                             print(string.format("     -> PET_LEVEL: %s", petAge and petAge.Text or "nil"))
                             print(string.format("     -> PET_NAME: %s", petName and petName.Text or "nil"))
                             print(string.format("     -> PET_TYPE: %s", petType and petType.Text or "nil"))
                             print(string.format("     -> PET_DESCRIPTION: %s", petDescription and petDescription.Text or "nil"))
-                        else
-                            print("     -> No Item found")
-                        end
-                    else
-                        print("     -> No Main found")
-                    end
-                    
-                    if petAge and petAge:IsA("TextLabel") then
-                        local ageText = petAge.Text
-                        local ageNum = tonumber(string.match(ageText, "%d+")) or 0
-                        local petNameText = petName and petName.Text or "Unknown"
-                        local petTypeText = petType and petType.Text or "Unknown"
-                        local petDescText = petDescription and petDescription.Text or ""
-                        
-                        -- Extract mutation from PET_DESCRIPTION instead of PET_TYPE
-                        local mutation = "Normal"
-                        
-                        for _, mut in pairs(mutations) do
-                            if string.find(petDescText, mut) then
-                                mutation = mut
-                                break
+                            
+                            -- Close the pet card after getting data
+                            local closeButton = findInChildren(petCard, "Close") or findInChildren(petCard, "X") or findInChildren(petCard, "CloseButton")
+                            if closeButton and closeButton:IsA("TextButton") then
+                                closeButton.MouseButton1Click:Fire()
+                                wait(0.2)
                             end
+                        else
+                            print("     -> Pet card not found after clicking view")
                         end
                         
-                        pets[child.Name] = {
-                            uuid = child.Name,
-                            age = ageNum,
-                            name = petNameText,
-                            type = petTypeText, -- Keep original type without mutation prefix
-                            mutation = mutation,
-                            fullType = petTypeText,
-                            description = petDescText,
-                            location = "Equipped",
-                            selected = selectedPets[child.Name] or false
-                        }
-                        
-                        print(string.format("     -> ADDED EQUIPPED PET: %s (%s) Level: %d", petNameText, mutation, ageNum))
+                        if petAge and petAge:IsA("TextLabel") then
+                            local ageText = petAge.Text
+                            local ageNum = tonumber(string.match(ageText, "%d+")) or 0
+                            local petNameText = petName and petName.Text or "Unknown"
+                            local petTypeText = petType and petType.Text or "Unknown"
+                            local petDescText = petDescription and petDescription.Text or ""
+                            
+                            -- Extract mutation from PET_DESCRIPTION instead of PET_TYPE
+                            local mutation = "Normal"
+                            
+                            for _, mut in pairs(mutations) do
+                                if string.find(petDescText, mut) then
+                                    mutation = mut
+                                    break
+                                end
+                            end
+                            
+                            pets[child.Name] = {
+                                uuid = child.Name,
+                                age = ageNum,
+                                name = petNameText,
+                                type = petTypeText, -- Keep original type without mutation prefix
+                                mutation = mutation,
+                                fullType = petTypeText,
+                                description = petDescText,
+                                location = "Equipped",
+                                selected = selectedPets[child.Name] or false
+                            }
+                            
+                            print(string.format("     -> ADDED EQUIPPED PET: %s (%s) Level: %d", petNameText, mutation, ageNum))
+                        else
+                            print("     -> No valid PET_LEVEL TextLabel found after opening card")
+                        end
                     else
-                        print("     -> No valid PET_LEVEL TextLabel found")
+                        print("     -> No View button found for pet:", child.Name)
                     end
                 end
             end
